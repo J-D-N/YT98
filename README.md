@@ -1,9 +1,8 @@
-# YouTube Legacy SOCKS Proxy for IE6 / Win9x Clients
+# YouTube Legacy Proxy for IE6 / Win9x Clients
 
 This project runs a local web proxy that:
 
 - Looks up YouTube videos and formats with `yt-dlp`
-- Pulls stream bytes through an optional SOCKS proxy
 - Serves a simple HTML 4 + IE6-friendly UI
 - Exposes direct proxy stream links so old browsers can hand off to external players
 - Supports channel following with a simple local feed view
@@ -17,7 +16,6 @@ Older browsers (IE6 on Windows 98/ME/2000-era setups) cannot run modern YouTube 
 
 - Python 3.10+
 - Network access to YouTube
-- Optional: a SOCKS5 proxy endpoint (for example `socks5h://127.0.0.1:1080`)
 - Optional: system FFmpeg on PATH (otherwise Python fallback binary is used)
 
 ## Install
@@ -36,16 +34,7 @@ winget install -e --id Gyan.FFmpeg --accept-source-agreements --accept-package-a
 
 ## Run
 
-Without SOCKS:
-
 ```powershell
-python app.py
-```
-
-With SOCKS:
-
-```powershell
-$env:SOCKS_PROXY = "socks5h://127.0.0.1:1080"
 python app.py
 ```
 
