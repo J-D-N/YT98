@@ -17,7 +17,6 @@ Older browsers (IE6 on Windows 98/ME/2000-era setups) cannot run modern YouTube 
 
 - Python 3.10+
 - Network access to YouTube
-- Optional: a SOCKS5 proxy endpoint (for example `socks5h://127.0.0.1:1080`)
 
 ## Install
 
@@ -32,13 +31,6 @@ pip install -r requirements.txt
 Without SOCKS:
 
 ```powershell
-python app.py
-```
-
-With SOCKS:
-
-```powershell
-$env:SOCKS_PROXY = "socks5h://127.0.0.1:1080"
 python app.py
 ```
 
