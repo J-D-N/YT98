@@ -24,7 +24,7 @@ Older browsers (IE6 on Windows 98/ME/2000-era setups) cannot run modern YouTube 
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.\.venv\bin\Activate.ps1
 pip install -r requirements.txt
 ```
 
