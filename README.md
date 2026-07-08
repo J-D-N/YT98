@@ -1,8 +1,9 @@
-# YouTube Legacy Proxy for IE6 / Win9x Clients
+# YouTube Legacy SOCKS Proxy for IE6 / Win9x Clients
 
 This project runs a local web proxy that:
 
 - Looks up YouTube videos and formats with `yt-dlp`
+- Pulls stream bytes through an optional SOCKS proxy
 - Serves a simple HTML 4 + IE6-friendly UI
 - Exposes direct proxy stream links so old browsers can hand off to external players
 - Supports channel following with a simple local feed view
@@ -16,25 +17,28 @@ Older browsers (IE6 on Windows 98/ME/2000-era setups) cannot run modern YouTube 
 
 - Python 3.10+
 - Network access to YouTube
-- Optional: system FFmpeg on PATH (otherwise Python fallback binary is used)
+- Optional: a SOCKS5 proxy endpoint (for example `socks5h://127.0.0.1:1080`)
 
 ## Install
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.\.venv\bin\Activate.ps1
 pip install -r requirements.txt
-```
-
-Optional (Windows host) to install system FFmpeg:
-
-```powershell
-winget install -e --id Gyan.FFmpeg --accept-source-agreements --accept-package-agreements
 ```
 
 ## Run
 
+Without SOCKS:
+
 ```powershell
+python app.py
+```
+
+With SOCKS:
+
+```powershell
+$env:SOCKS_PROXY = "socks5h://127.0.0.1:1080"
 python app.py
 ```
 
@@ -47,9 +51,6 @@ Optional environment variables:
 - `CHANNEL_FEED_LIMIT` (default `12`)
 - `FOLLOWING_FILE` (default `following_channels.txt`)
 - `MAX_FORMAT_OPTIONS` (default `80`)
-- `VLC_TRANSCODE_ENABLED` (default `1`, set `0` to disable FFmpeg transcode route)
-- `FFMPEG_BIN` (default `ffmpeg`, path or executable name; auto-falls back to bundled binary)
-- `TRANSCODE_HEIGHT` (default `0`; set e.g. `480` to force transcode output height)
 
 ## Use with old Windows 9x + IE6
 
@@ -60,7 +61,7 @@ Optional environment variables:
 5. Use the `Click to try inline playback` link only when you want embedded playback.
 6. If inline playback fails in IE6, use one of the `Proxy Stream Links`.
 7. For VLC specifically:
-	- `VLC M3U` uses a transcode path when FFmpeg is available.
+	- `VLC M3U` uses direct relay for the selected stream.
 	- `VLC Safe A/V` uses direct relay of a safer muxed stream.
 8. Use `Follow Channel` on a video page to save that channel.
 9. Open `View Followed Channels` to browse followed channels and see latest uploads.
@@ -82,8 +83,6 @@ Optional environment variables:
 - If it still fails, reload the watch page to generate fresh links and try another listed format.
 - `Find this channel` now prefers direct channel URL metadata when available, then resolves from video ID, then falls back to channel-name discovery.
 - `VLC M3U` uses the current relay token from the selected format link.
-- If `/health` reports `ffmpeg: not-found`, normal `VLC M3U` will fall back automatically to direct relay.
-- `/health` now includes `ffmpeg_bin` with the resolved executable path when transcoding is available.
 - If a stream plays only audio, pick a format marked `[Legacy A/V]` (H.264 + AAC) in the format label.
 
 ## Security warning

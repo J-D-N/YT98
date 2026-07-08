@@ -1,10 +1,7 @@
 import os
 import secrets
-import shutil
-import subprocess
 import threading
 import time
-from glob import glob
 from html import escape
 from dataclasses import dataclass
 from typing import Dict, List, Optional
@@ -26,9 +23,6 @@ SEARCH_LIMIT = int(os.getenv("SEARCH_LIMIT", "10"))
 CHANNEL_FEED_LIMIT = int(os.getenv("CHANNEL_FEED_LIMIT", "12"))
 FOLLOWING_FILE = os.getenv("FOLLOWING_FILE", "following_channels.txt")
 MAX_FORMAT_OPTIONS = int(os.getenv("MAX_FORMAT_OPTIONS", "80"))
-VLC_TRANSCODE_ENABLED = (os.getenv("VLC_TRANSCODE_ENABLED", "1").strip().lower() not in {"0", "false", "no"})
-FFMPEG_BIN = (os.getenv("FFMPEG_BIN", "ffmpeg").strip() or "ffmpeg")
-TRANSCODE_HEIGHT = int(os.getenv("TRANSCODE_HEIGHT", "0"))
 
 
 @dataclass
@@ -86,50 +80,6 @@ def get_stream_token(token: str) -> Optional[StreamToken]:
     with TOKENS_LOCK:
         item = TOKENS.get(token)
     return item
-
-
-def resolve_ffmpeg_bin() -> Optional[str]:
-    # If user provides an explicit executable path, respect it.
-    if os.path.isabs(FFMPEG_BIN) and os.path.exists(FFMPEG_BIN):
-        return FFMPEG_BIN
-
-    found = shutil.which(FFMPEG_BIN)
-    if found:
-        return found
-
-    # Fallback to Python-managed FFmpeg binary when available.
-    try:
-        import imageio_ffmpeg
-
-        exe = imageio_ffmpeg.get_ffmpeg_exe()
-        if exe and os.path.exists(exe):
-            return exe
-    except Exception:
-        pass
-
-    # Windows fallback: resolve common winget package install path directly.
-    local_appdata = os.getenv("LOCALAPPDATA", "").strip()
-    if local_appdata:
-        pattern = os.path.join(
-            local_appdata,
-            "Microsoft",
-            "WinGet",
-            "Packages",
-            "Gyan.FFmpeg_*",
-            "**",
-            "bin",
-            "ffmpeg.exe",
-        )
-        matches = glob(pattern, recursive=True)
-        if matches:
-            matches.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-            return matches[0]
-
-    return None
-
-
-def ffmpeg_available() -> bool:
-    return resolve_ffmpeg_bin() is not None
 
 
 def choose_source_video(raw: str, info: Dict) -> str:
@@ -1065,98 +1015,10 @@ def relay(token: str):
 
 @app.route("/health")
 def health() -> Dict[str, str]:
-    ffmpeg_path = resolve_ffmpeg_bin()
     return {
         "status": "ok",
         "socks_proxy": "configured" if SOCKS_PROXY else "not-configured",
-        "ffmpeg": "available" if ffmpeg_path else "not-found",
-        "ffmpeg_bin": ffmpeg_path or "",
     }
-
-
-@app.route("/transcode/<token>.ts", methods=["GET", "HEAD"])
-def transcode(token: str):
-    item = get_stream_token(token)
-    if not item:
-        abort(404, description="Expired or invalid stream token")
-
-    fallback_url = url_for("relay", token=token) + "?vlc=1"
-    ffmpeg_exe = resolve_ffmpeg_bin()
-    if not VLC_TRANSCODE_ENABLED or not ffmpeg_exe:
-        return redirect(fallback_url)
-
-    response_headers = {
-        "Content-Type": "video/mp2t",
-        "Cache-Control": "no-store",
-        "Connection": "close",
-        "Accept-Ranges": "none",
-    }
-
-    if request.method == "HEAD":
-        return Response(status=200, headers=response_headers)
-
-    source_url = request.url_root.rstrip("/") + url_for("relay", token=token) + "?vlc=1"
-    ffmpeg_cmd = [
-        ffmpeg_exe,
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-i",
-        source_url,
-        "-map",
-        "0:v:0?",
-        "-map",
-        "0:a:0?",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "veryfast",
-        "-profile:v",
-        "baseline",
-        "-level",
-        "3.0",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "128k",
-        "-ac",
-        "2",
-        "-ar",
-        "44100",
-    ]
-    if TRANSCODE_HEIGHT > 0:
-        ffmpeg_cmd.extend(["-vf", f"scale=-2:{TRANSCODE_HEIGHT}"])
-    ffmpeg_cmd.extend(["-f", "mpegts", "pipe:1"])
-
-    try:
-        proc = subprocess.Popen(
-            ffmpeg_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            bufsize=0,
-        )
-    except OSError as exc:
-        return Response(f"FFmpeg start failed: {exc}", status=502, mimetype="text/plain")
-
-    def generate():
-        try:
-            while True:
-                chunk = proc.stdout.read(128 * 1024)
-                if not chunk:
-                    break
-                yield chunk
-        finally:
-            try:
-                if proc.poll() is None:
-                    proc.terminate()
-            except Exception:
-                pass
-            if proc.stdout:
-                proc.stdout.close()
-
-    return Response(generate(), status=200, headers=response_headers)
 
 
 @app.route("/vlc/<token>.m3u")
@@ -1189,10 +1051,7 @@ def vlc_playlist(token: str):
             # Keep original token path if refresh fails.
             playlist_token = token
 
-    if safe_mode:
-        stream_url = request.url_root.rstrip("/") + url_for("relay", token=playlist_token)
-    else:
-        stream_url = request.url_root.rstrip("/") + url_for("transcode", token=playlist_token)
+    stream_url = request.url_root.rstrip("/") + url_for("relay", token=playlist_token)
     content = "#EXTM3U\n" + f"#EXTINF:-1,{item.title}\n{stream_url}\n"
     return Response(content, mimetype="audio/x-mpegurl")
 
